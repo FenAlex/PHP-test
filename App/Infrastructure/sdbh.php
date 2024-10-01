@@ -14,11 +14,11 @@ class sdbh
 
     function __construct(array $settings = [])
     {
-        $this->port = $settings['host'] ?: 3306;
-        $this->host = $settings['host'] ?: 'localhost';
-        $this->dbname = $settings['dbname'] ?: 'test_a25';
-        $this->user = $settings['user'] ?: 'root';
-        $this->pass = $settings['pass'] ?: '';
+        $this->port = $settings['host'] ?? 3306;
+        $this->host = $settings['host'] ?? 'localhost';
+        $this->dbname = $settings['dbname'] ?? 'test_a25';
+        $this->user = $settings['user'] ?? 'root';
+        $this->pass = $settings['pass'] ?? '';
         $mysql_conn = mysqli_connect($this->host, $this->user, $this->pass, $this->dbname, $this->port);
 
         $this->sql_read = $mysql_conn;
@@ -112,16 +112,44 @@ class sdbh
      * @param query - query text
      * @return many interesting things :)
      */
-    public function make_query($query, $reconnect = false)
+    // public function make_query($query, $reconnect = false)
+    // {
+    //     $this->sql = $this->get_connection($query);
+    //     $r = $this->query_ds_exc($query, $reconnect);
+    //     if (mysqli_errno($this->sql)) {
+    //         return mysqli_error($this->sql);
+    //     } elseif (stristr(substr($query, 0, 10), 'select') !== false) {
+    //         return $this->get_all_assoc($r);
+    //     }
+    //     return mysqli_affected_rows($this->sql);
+    // }
+
+    public function make_query($query, $params = [], $reconnect = false)
     {
         $this->sql = $this->get_connection($query);
-        $r = $this->query_ds_exc($query, $reconnect);
-        if (mysqli_errno($this->sql)) {
+        
+        $stmt = $this->sql->prepare($query);
+        if ($stmt === false) {
             return mysqli_error($this->sql);
-        } elseif (stristr(substr($query, 0, 10), 'select') !== false) {
-            return $this->get_all_assoc($r);
         }
-        return mysqli_affected_rows($this->sql);
+
+        if (!empty($params)) {
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+        }
+
+        $stmt->execute();
+        
+        if ($stmt->errno) {
+            return $stmt->error;
+        }
+
+        if (stripos($query, 'SELECT') === 0) {
+            $result = $stmt->get_result();
+            return $result->fetch_all(MYSQLI_ASSOC);
+        }
+
+        return $stmt->affected_rows;
     }
 
 
